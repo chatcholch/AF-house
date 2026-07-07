@@ -19,18 +19,20 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · shadcn/u
 ## Quick start
 
 ```bash
-npm install
-npx prisma db push      # creates prisma/dev.db from the schema
-npm run db:seed         # loads realistic mock data (15 products, personas, campaigns, results)
+npm install             # also runs `prisma generate` via postinstall
+npm run setup           # copies .env.example → .env, creates prisma/dev.db, seeds mock data
 npm run dev             # http://localhost:3000
 ```
 
 That's it — the app is fully usable with zero API keys thanks to the built-in mock AI provider and seeded mock market data.
 
+> **Note:** `.env` is gitignored, so a fresh clone doesn't have one. `npm run setup` creates it from `.env.example` (which contains the local SQLite `DATABASE_URL`) before pushing the schema and seeding. If you prefer the manual steps: copy `.env.example` to `.env`, then `npx prisma db push` and `npm run db:seed`.
+
 ### Useful scripts
 
 | Script | What it does |
 | --- | --- |
+| `npm run setup` | One-shot first-time setup: create `.env`, push schema, seed data |
 | `npm run dev` | Start the dev server |
 | `npm run build` / `npm start` | Production build / serve |
 | `npm run db:push` | Sync Prisma schema to the database |
