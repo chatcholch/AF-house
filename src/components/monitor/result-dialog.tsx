@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -139,11 +139,14 @@ export function ResultDialog({
   );
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setForm(buildInitialState(editing, fixedCampaignId));
-    }
-  }, [open, editing, fixedCampaignId]);
+  // Re-initialize the form whenever the dialog opens for a different target
+  // (render-time state adjustment — see react.dev "You Might Not Need an Effect").
+  const formKey = `${open}:${editing?.id ?? ""}:${fixedCampaignId ?? ""}`;
+  const [prevFormKey, setPrevFormKey] = useState(formKey);
+  if (prevFormKey !== formKey) {
+    setPrevFormKey(formKey);
+    if (open) setForm(buildInitialState(editing, fixedCampaignId));
+  }
 
   const set = (key: keyof FormState, value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
