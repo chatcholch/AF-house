@@ -143,11 +143,11 @@ ${optionsContext(options, null)}
 
 Write caption variant #${variant + 1} for this product's video post. 1-3 sentences, natural, not salesy. Include 5-7 relevant hashtags (mix Thai/English as fits the language setting).
 Return JSON: {"text": "...", "hashtags": ["#..."], "disclosure": ${JSON.stringify(
-          DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.MIX
+          DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.TH
         )}}`
       );
       if (!res.text) throw new Error("bad shape");
-      res.disclosure ||= DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.MIX;
+      res.disclosure ||= DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.TH;
       return res;
     } catch {
       return mock.generateCaption(product, options, variant);
@@ -233,7 +233,7 @@ Return JSON:
       scripts,
       captions,
       hashtags: [...allTags],
-      disclosure: DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.MIX,
+      disclosure: DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.TH,
       angles,
       showcasePrompt,
       personaPrompt,

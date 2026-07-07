@@ -642,7 +642,7 @@ async function main() {
       options: {
         platform: "TIKTOK",
         style: "UGC",
-        language: "MIX",
+        language: "TH",
         tone: "PLAYFUL",
         durationSec: 15,
         includePersona: true,

@@ -594,7 +594,7 @@ export class MockAiProvider implements AiProvider {
       th ? "#ป้ายยา" : "#TikTokFinds",
     ].filter((h) => h !== "#新");
 
-    const disclosure = DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.MIX;
+    const disclosure = DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.TH;
 
     return {
       text: th ? bodiesTH[variant % bodiesTH.length] : bodiesEN[variant % bodiesEN.length],
@@ -740,7 +740,7 @@ export class MockAiProvider implements AiProvider {
       scripts,
       captions,
       hashtags: [...allTags],
-      disclosure: DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.MIX,
+      disclosure: DISCLOSURE_TEXT[options.language] ?? DISCLOSURE_TEXT.TH,
       angles,
       showcasePrompt,
       personaPrompt,
