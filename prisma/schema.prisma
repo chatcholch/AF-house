@@ -1,0 +1,415 @@
+// Affiliate Command Center — data model
+//
+// NOTE ON PORTABILITY: this schema targets SQLite for local development.
+// To move to PostgreSQL, change the datasource provider to "postgresql"
+// and set DATABASE_URL accordingly. Enum-like fields are stored as String
+// (SQLite has no native enums) — the allowed values are defined as
+// TypeScript const unions in src/lib/types.ts and documented here in
+// comments, so the schema stays valid on both databases.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Products & market data
+// ---------------------------------------------------------------------------
+
+model Product {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  category    String
+  brand       String?
+  price       Float
+  currency    String  @default("THB")
+  imageUrl    String?
+  productUrl  String?
+
+  // SHOPEE | TIKTOK_SHOP | BOTH
+  platform String @default("SHOPEE")
+
+  commissionRate Float  @default(0) // percent, e.g. 12.5
+  // MOCK | MANUAL | CSV | SHOPEE_API | TIKTOK_API
+  source         String @default("MANUAL")
+
+  // WATCHLIST | TEST | ACTIVE | REJECTED | WINNER
+  status String @default("WATCHLIST")
+
+  // Opportunity flags
+  isNewLaunch  Boolean @default(false)
+  isKnownBrand Boolean @default(false)
+  isRising     Boolean @default(false)
+  isSeasonal   Boolean @default(false)
+  isEvergreen  Boolean @default(false)
+  seasonalWindow String?
+
+  // Manual/imported component inputs, 0-100
+  demandScore            Int @default(50)
+  trendScore             Int @default(50)
+  competitionScore       Int @default(50) // higher = MORE competition
+  contentDifficultyScore Int @default(50) // higher = harder to make content
+  trustScore             Int @default(50) // brand/product trustworthiness
+
+  // Cached latest opportunity score for fast sorting (recomputed on change)
+  opportunityScore Int @default(0)
+
+  // Risk category for compliance: GENERAL | SKINCARE | SUPPLEMENT | HEALTH | BEAUTY | FINANCE | KIDS
+  riskCategory String @default("GENERAL")
+
+  whyItMightSell   String?
+  buyerPersonasJson String? // JSON array of {name, description}
+  painPointsJson    String? // JSON array of strings
+  tags             String? // comma-separated
+  notes            String?
+  launchDate       DateTime?
+  lastSyncedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  platformData     PlatformProductData[]
+  affiliateLinks   AffiliateLink[]
+  trendSignals     TrendSignal[]
+  opportunityScores OpportunityScore[]
+  contentIdeas     ContentIdea[]
+  scripts          Script[]
+  captions         Caption[]
+  videoPrompts     VideoPrompt[]
+  campaigns        Campaign[]
+  complianceChecks ComplianceCheck[]
+
+  @@index([status])
+  @@index([platform])
+  @@index([category])
+  @@index([opportunityScore])
+}
+
+model PlatformProductData {
+  id                String  @id @default(cuid())
+  productId         String
+  product           Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // SHOPEE | TIKTOK_SHOP
+  platform          String
+  platformProductId String?
+  price             Float?
+  commissionRate    Float?
+  salesCount        Int?
+  rating            Float?
+  reviewCount       Int?
+  stockStatus       String?
+  categoryPath      String?
+  sellerName        String?
+  rawJson           String?
+  syncedAt          DateTime @default(now())
+
+  @@index([productId])
+}
+
+model AffiliateLink {
+  id        String   @id @default(cuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // SHOPEE | TIKTOK_SHOP | FACEBOOK | OTHER
+  platform  String
+  url       String
+  shortUrl  String?
+  label     String?
+  isActive  Boolean  @default(true)
+  clicks    Int      @default(0) // manually tracked clicks
+  createdAt DateTime @default(now())
+
+  @@index([productId])
+}
+
+model TrendSignal {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  // TRENDING | RISING | NEW_BRAND_DROP | KNOWN_BRAND_LAUNCH | HIGH_COMMISSION |
+  // LOW_COMPETITION | SEASONAL | EVERGREEN | SOCIAL_BUZZ | SEARCH_INTEREST
+  signalType String
+  // MANUAL | MOCK | CSV | API
+  source     String   @default("MANUAL")
+  strength   Int      @default(50) // 0-100
+  note       String?
+  detectedAt DateTime @default(now())
+
+  @@index([productId])
+  @@index([signalType])
+}
+
+model OpportunityScore {
+  id               String   @id @default(cuid())
+  productId        String
+  product          Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  total            Int // 0-100
+  trendMomentum    Int
+  brandStrength    Int
+  commission       Int
+  viralityPotential Int
+  competitionGap   Int
+  complianceSafety Int // higher = safer
+  weightsJson      String // weights snapshot used for this computation
+  explanationJson  String? // JSON array of human-readable reasons
+  isCurrent        Boolean  @default(true)
+  computedAt       DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// AI persona & generated content
+// ---------------------------------------------------------------------------
+
+model Persona {
+  id                String   @id @default(cuid())
+  name              String
+  ageRange          String
+  style             String
+  voiceTone         String
+  personality       String
+  clothingStyle     String
+  background        String
+  cameraStyle       String
+  doList            String // newline-separated
+  dontList          String // newline-separated
+  consistencyPrompt String
+  visualDescription String
+  speakingStyle     String
+  brandSafeRules    String
+  isDefault         Boolean  @default(false)
+  // Personas are ALWAYS fictional — never a real person or celebrity likeness.
+  isFictional       Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  contentIdeas ContentIdea[]
+  videoPrompts VideoPrompt[]
+  campaigns    Campaign[]
+}
+
+model ContentIdea {
+  id         String   @id @default(cuid())
+  productId  String
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  personaId  String?
+  persona    Persona? @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  // TIKTOK | SHOPEE_VIDEO | FACEBOOK | MULTI
+  platform   String   @default("TIKTOK")
+  // TALKING_HEAD | PRODUCT_DEMO | PRODUCT_SHOWCASE | UGC_REVIEW | PROBLEM_SOLUTION |
+  // BEFORE_AFTER | UNBOXING | THREE_SCENE_AD
+  style      String
+  title      String
+  angle      String
+  hook       String?
+  concept    String?
+  // TH | EN | MIX
+  language   String   @default("TH")
+  // FRIENDLY | PREMIUM | PLAYFUL | EXPERT | SOFT_SELL
+  tone       String   @default("FRIENDLY")
+  durationSec Int     @default(15)
+  templateKey String?
+  // DRAFT | NEEDS_REVIEW | APPROVED | REJECTED | USED
+  status     String   @default("DRAFT")
+  // MOCK | OPENAI | GEMINI | MANUAL
+  generatedBy String  @default("MOCK")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  scripts          Script[]
+  captions         Caption[]
+  videoPrompts     VideoPrompt[]
+  campaigns        Campaign[]
+  complianceChecks ComplianceCheck[]
+
+  @@index([productId])
+  @@index([status])
+}
+
+model Script {
+  id            String       @id @default(cuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  contentIdeaId String?
+  contentIdea   ContentIdea? @relation(fields: [contentIdeaId], references: [id], onDelete: SetNull)
+  title         String
+  durationSec   Int          @default(15)
+  language      String       @default("TH")
+  tone          String       @default("FRIENDLY")
+  style         String       @default("TALKING_HEAD")
+  hookLine      String?
+  body          String // full script text with scene markers
+  shotListJson  String? // JSON array of {scene, timecode, visual, voiceover, onScreenText}
+  cta           String?
+  generatedBy   String       @default("MOCK")
+  createdAt     DateTime     @default(now())
+
+  complianceChecks ComplianceCheck[]
+
+  @@index([productId])
+}
+
+model Caption {
+  id            String       @id @default(cuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  contentIdeaId String?
+  contentIdea   ContentIdea? @relation(fields: [contentIdeaId], references: [id], onDelete: SetNull)
+  // TIKTOK | SHOPEE_VIDEO | FACEBOOK
+  platform      String       @default("TIKTOK")
+  text          String
+  hashtags      String? // space-separated #tags
+  disclosure    String // affiliate disclosure text — required, never empty
+  language      String       @default("TH")
+  generatedBy   String       @default("MOCK")
+  createdAt     DateTime     @default(now())
+
+  complianceChecks ComplianceCheck[]
+
+  @@index([productId])
+}
+
+model VideoPrompt {
+  id             String       @id @default(cuid())
+  productId      String
+  product        Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  contentIdeaId  String?
+  contentIdea    ContentIdea? @relation(fields: [contentIdeaId], references: [id], onDelete: SetNull)
+  personaId      String?
+  persona        Persona?     @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  // PERSONA_TALKING_HEAD | PERSONA_DEMO | PRODUCT_SHOWCASE | UGC | CINEMATIC | CLEAN_AD
+  promptType     String       @default("PRODUCT_SHOWCASE")
+  // VEO | GEMINI | OTHER
+  targetModel    String       @default("VEO")
+  title          String
+  structuredJson String // JSON of all prompt sections (objective, scenes, camera, ...)
+  compiledPrompt String // final copy-paste prompt text
+  negativePrompt String?
+  durationSec    Int          @default(8)
+  aspectRatio    String       @default("9:16")
+  generatedBy    String       @default("MOCK")
+  createdAt      DateTime     @default(now())
+
+  campaigns Campaign[]
+
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// Campaigns & performance (Monitor)
+// ---------------------------------------------------------------------------
+
+model Campaign {
+  id            String       @id @default(cuid())
+  productId     String
+  product       Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  contentIdeaId String?
+  contentIdea   ContentIdea? @relation(fields: [contentIdeaId], references: [id], onDelete: SetNull)
+  videoPromptId String?
+  videoPrompt   VideoPrompt? @relation(fields: [videoPromptId], references: [id], onDelete: SetNull)
+  personaId     String?
+  persona       Persona?     @relation(fields: [personaId], references: [id], onDelete: SetNull)
+  // TIKTOK | SHOPEE_VIDEO | FACEBOOK | MULTI
+  platform      String       @default("TIKTOK")
+  title         String
+  videoStyle    String?
+  hookUsed      String?
+  scriptText    String?
+  captionText   String?
+  promptText    String?
+  // IDEA | GENERATED | NEEDS_REVIEW | APPROVED | POSTED | TESTING | WINNER | FAILED | ARCHIVED
+  status        String       @default("IDEA")
+  scheduledDate DateTime?
+  postedDate    DateTime?
+  postUrl       String?
+  notes         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  results CampaignResult[]
+
+  @@index([productId])
+  @@index([status])
+  @@index([scheduledDate])
+}
+
+model CampaignResult {
+  id             String   @id @default(cuid())
+  campaignId     String
+  campaign       Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  recordedAt     DateTime @default(now())
+  periodLabel    String? // e.g. "Day 1", "Week 1"
+  views          Int      @default(0)
+  likes          Int      @default(0)
+  comments       Int      @default(0)
+  shares         Int      @default(0)
+  saves          Int      @default(0)
+  clicks         Int      @default(0)
+  orders         Int      @default(0)
+  gmv            Float    @default(0) // gross merchandise value
+  commission     Float    @default(0)
+  // MANUAL | API
+  source         String   @default("MANUAL")
+  notes          String?
+
+  @@index([campaignId])
+}
+
+// ---------------------------------------------------------------------------
+// Compliance
+// ---------------------------------------------------------------------------
+
+model ComplianceCheck {
+  id            String       @id @default(cuid())
+  productId     String?
+  product       Product?     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  contentIdeaId String?
+  contentIdea   ContentIdea? @relation(fields: [contentIdeaId], references: [id], onDelete: Cascade)
+  scriptId      String?
+  script        Script?      @relation(fields: [scriptId], references: [id], onDelete: Cascade)
+  captionId     String?
+  caption       Caption?     @relation(fields: [captionId], references: [id], onDelete: Cascade)
+  contentText   String
+  // SAFE | NEEDS_REVIEW | RISKY | REJECT
+  verdict       String
+  score         Int // 0-100, higher = safer
+  flagsJson     String // JSON array of {ruleId, severity, message, excerpt, suggestion}
+  hasDisclosure Boolean  @default(false)
+  // RULES | AI
+  checkedBy     String   @default("RULES")
+  checkedAt     DateTime @default(now())
+
+  @@index([productId])
+}
+
+// ---------------------------------------------------------------------------
+// Integrations & settings
+// ---------------------------------------------------------------------------
+
+model IntegrationCredential {
+  id           String    @id @default(cuid())
+  // SHOPEE_AFFILIATE | TIKTOK_SHOP_AFFILIATE | FACEBOOK | OPENAI | GEMINI
+  provider     String    @unique
+  name         String
+  apiKey       String?
+  apiSecret    String?
+  extraJson    String?
+  isActive     Boolean   @default(false)
+  // NOT_CONFIGURED | CONFIGURED | ERROR
+  status       String    @default("NOT_CONFIGURED")
+  lastTestedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model AppSetting {
+  key       String   @id
+  valueJson String
+  updatedAt DateTime @updatedAt
+}
